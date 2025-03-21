@@ -1,10 +1,11 @@
 from twisted.internet import reactor
 from twisted.protocols.ftp import FTPFactory, FTPRealm, FTP
+from twisted.web import server, resource
 from twisted.cred.portal import Portal
 from twisted.cred.checkers import InMemoryUsernamePasswordDatabaseDontUse
-from twisted.internet.interfaces import IReactorTime
 import os
 
+# FTP Server Components
 class CustomFTPProtocol(FTP):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -15,32 +16,44 @@ class CustomFTPFactory(FTPFactory):
 
     def __init__(self, portal):
         super().__init__(portal)
-        self.passivePorts = list(range(60000, 65535))  # Passive port range
+        self.passivePorts = list(range(60000, 65535))
 
+# Web Server Components
+class HelloWorldResource(resource.Resource):
+    isLeaf = True
+    def render_GET(self, request):
+        return b"Hello World"
+
+def setup_web_server():
+    web_root = HelloWorldResource()
+    web_site = server.Site(web_root)
+    reactor.listenTCP(8080, web_site, interface='0.0.0.0')
+    print(f"Web server running on port 8080")
+
+# Main Configuration
 def main():
-    # Configuration
-    FTP_PORT = 2121
-    FTP_ROOT = os.path.join(os.getcwd(), "ftp_files")
-    
-    # Create FTP root directory if it doesn't exist
-    os.makedirs(FTP_ROOT, exist_ok=True)
+    # FTP Server Setup
+    ftp_port = 2121
+    ftp_root = os.path.join(os.getcwd(), "ftp_files")
+    os.makedirs(ftp_root, exist_ok=True)
 
-    # Set up in-memory authentication
+    # FTP Authentication
     checker = InMemoryUsernamePasswordDatabaseDontUse()
-    checker.addUser(b"admin", b"admin")  # Default credentials
+    checker.addUser(b"admin", b"admin")
 
-    # Set up the portal
-    portal = Portal(FTPRealm(FTP_ROOT), [checker])
+    # Create FTP Portal
+    ftp_portal = Portal(FTPRealm(ftp_root), [checker])
+    ftp_factory = CustomFTPFactory(ftp_portal)
 
-    # Create factory with passive port range
-    factory = CustomFTPFactory(portal)
+    # Start Servers
+    reactor.listenTCP(ftp_port, ftp_factory, interface='0.0.0.0')
+    setup_web_server()
 
-    # Start the server
-    reactor.listenTCP(FTP_PORT, factory, interface='0.0.0.0')
-    print(f"FTP server running on port {FTP_PORT}")
-    print(f"FTP root directory: {FTP_ROOT}")
-    print("Username: admin")
-    print("Password: admin")
+    print(f"\nFTP Server Info:")
+    print(f"Port: {ftp_port}")
+    print(f"Root Directory: {ftp_root}")
+    print("Credentials: admin/admin")
+    
     reactor.run()
 
 if __name__ == "__main__":
