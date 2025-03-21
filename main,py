@@ -1,0 +1,47 @@
+from twisted.internet import reactor
+from twisted.protocols.ftp import FTPFactory, FTPRealm, FTP
+from twisted.cred.portal import Portal
+from twisted.cred.checkers import InMemoryUsernamePasswordDatabaseDontUse
+from twisted.internet.interfaces import IReactorTime
+import os
+
+class CustomFTPProtocol(FTP):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.welcomeMessage = "220 Thank you for logging onto the server\r\n"
+
+class CustomFTPFactory(FTPFactory):
+    protocol = CustomFTPProtocol
+
+    def __init__(self, portal):
+        super().__init__(portal)
+        self.passivePorts = list(range(60000, 65535))  # Passive port range
+
+def main():
+    # Configuration
+    FTP_PORT = 2121
+    FTP_ROOT = os.path.join(os.getcwd(), "ftp_files")
+    
+    # Create FTP root directory if it doesn't exist
+    os.makedirs(FTP_ROOT, exist_ok=True)
+
+    # Set up in-memory authentication
+    checker = InMemoryUsernamePasswordDatabaseDontUse()
+    checker.addUser(b"admin", b"admin")  # Default credentials
+
+    # Set up the portal
+    portal = Portal(FTPRealm(FTP_ROOT), [checker])
+
+    # Create factory with passive port range
+    factory = CustomFTPFactory(portal)
+
+    # Start the server
+    reactor.listenTCP(FTP_PORT, factory, interface='0.0.0.0')
+    print(f"FTP server running on port {FTP_PORT}")
+    print(f"FTP root directory: {FTP_ROOT}")
+    print("Username: admin")
+    print("Password: admin")
+    reactor.run()
+
+if __name__ == "__main__":
+    main()
